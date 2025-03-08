@@ -22,7 +22,7 @@ def apply_sharpen(image, intensity='normal'):
                           [0, -4, 0]])
     return cv2.filter2D(image, -1, kernel)
 
-def apply_sobel_edge(image, direction='both', threshold=30, enhance=False):
+def apply_sobel_edge(image, direction='both', threshold=30, enhance=False, line_color=(0, 0, 255), line_thickness=1):
     # Convert to grayscale if image is color
     if len(image.shape) == 3:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -58,8 +58,13 @@ def apply_sobel_edge(image, direction='both', threshold=30, enhance=False):
         if len(enhanced.shape) == 2:  # If input was grayscale
             enhanced = cv2.cvtColor(enhanced, cv2.COLOR_GRAY2BGR)
         
-        # Overlay edges in red
-        enhanced[binary_edges > 0] = [0, 0, 255]  # Red color for edges
+        # Create a mask for the edges with specified thickness
+        if line_thickness > 1:
+            kernel = np.ones((line_thickness, line_thickness), np.uint8)
+            binary_edges = cv2.dilate(binary_edges, kernel, iterations=1)
+        
+        # Overlay edges with specified color
+        enhanced[binary_edges > 0] = line_color
         return enhanced
     else:
         # Return binary edges if no enhancement requested
@@ -68,23 +73,45 @@ def apply_sobel_edge(image, direction='both', threshold=30, enhance=False):
         return binary_edges
 
 def process_image(image, operation, params):
-    if operation == "Box Blur":
-        return apply_box_blur(image, params["kernel_size"])
-    elif operation == "Gaussian Blur":
-        return apply_gaussian_blur(image, params["kernel_size"], params.get("sigma", 0))
-    elif operation == "Sharpen":
-        return apply_sharpen(image, params.get("intensity", "normal"))
-    elif operation == "Edge Detection":
+    if operation == "Edge Detection":
         return apply_sobel_edge(
             image,
             direction=params.get("direction", "both"),
             threshold=params.get("threshold", 30),
-            enhance=params.get("enhance", False)
+            enhance=params.get("enhance", False),
+            line_color=params.get("line_color", (0, 0, 255)),
+            line_thickness=params.get("line_thickness", 1)
         )
+    elif operation == "Sharpen":
+        return apply_sharpen(image, params.get("intensity", "normal"))
+    elif operation == "Box Blur":
+        return apply_box_blur(image, params["kernel_size"])
+    elif operation == "Gaussian Blur":
+        return apply_gaussian_blur(image, params["kernel_size"], params.get("sigma", 0))
     return image
 
 def main():
-    st.title("Image Processing Application")
+    st.title("Image Processing Tool")
+    
+    # Add custom CSS for footer
+    st.markdown(
+        """
+        <style>
+        .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background-color: transparent;
+            color: grey;
+            text-align: center;
+            padding: 10px;
+            font-size: 14px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
     
     # File uploader
     uploaded_file = st.file_uploader("Choose an image or video file", type=["jpg", "jpeg", "png", "mp4"])
@@ -108,26 +135,11 @@ def main():
             st.sidebar.header("Processing Options")
             operation = st.sidebar.selectbox(
                 "Select Operation",
-                ["Box Blur", "Gaussian Blur", "Sharpen", "Edge Detection"]
+                ["Edge Detection", "Sharpen", "Box Blur", "Gaussian Blur"]
             )
             
             params = {}
-            if operation in ["Box Blur", "Gaussian Blur"]:
-                params["kernel_size"] = st.sidebar.slider(
-                    "Kernel Size",
-                    3, 31, 5, step=2
-                )
-                if operation == "Gaussian Blur":
-                    params["sigma"] = st.sidebar.slider(
-                        "Sigma",
-                        0, 10, 0
-                    )
-            elif operation == "Sharpen":
-                params["intensity"] = st.sidebar.selectbox(
-                    "Sharpening Intensity",
-                    ["normal", "intense"]
-                )
-            elif operation == "Edge Detection":
+            if operation == "Edge Detection":
                 params["direction"] = st.sidebar.selectbox(
                     "Edge Direction",
                     ["both", "x", "y"]
@@ -138,9 +150,44 @@ def main():
                 )
                 params["enhance"] = st.sidebar.checkbox(
                     "Enhance Edges",
-                    value=False,
-                    help="Overlay detected edges in red on the original image"
+                    value=True,
+                    help="Overlay detected edges on the original image"
                 )
+                if params["enhance"]:
+                    color_option = st.sidebar.selectbox(
+                        "Edge Color",
+                        ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "White"]
+                    )
+                    # Map color names to BGR values
+                    color_map = {
+                        "Red": (0, 0, 255),
+                        "Green": (0, 255, 0),
+                        "Blue": (255, 0, 0),
+                        "Yellow": (0, 255, 255),
+                        "Cyan": (255, 255, 0),
+                        "Magenta": (255, 0, 255),
+                        "White": (255, 255, 255)
+                    }
+                    params["line_color"] = color_map[color_option]
+                    params["line_thickness"] = st.sidebar.slider(
+                        "Line Thickness",
+                        1, 5, 1
+                    )
+            elif operation == "Sharpen":
+                params["intensity"] = st.sidebar.selectbox(
+                    "Sharpening Intensity",
+                    ["normal", "intense"]
+                )
+            elif operation in ["Box Blur", "Gaussian Blur"]:
+                params["kernel_size"] = st.sidebar.slider(
+                    "Kernel Size",
+                    3, 31, 5, step=2
+                )
+                if operation == "Gaussian Blur":
+                    params["sigma"] = st.sidebar.slider(
+                        "Sigma",
+                        0, 10, 0
+                    )
             
             if st.sidebar.button("Apply Filter"):
                 processed_image = process_image(image, operation, params)
@@ -165,26 +212,11 @@ def main():
             st.sidebar.header("Processing Options")
             operation = st.sidebar.selectbox(
                 "Select Operation",
-                ["Box Blur", "Gaussian Blur", "Sharpen", "Edge Detection"]
+                ["Edge Detection", "Sharpen", "Box Blur", "Gaussian Blur"]
             )
             
             params = {}
-            if operation in ["Box Blur", "Gaussian Blur"]:
-                params["kernel_size"] = st.sidebar.slider(
-                    "Kernel Size",
-                    3, 31, 5, step=2
-                )
-                if operation == "Gaussian Blur":
-                    params["sigma"] = st.sidebar.slider(
-                        "Sigma",
-                        0, 10, 0
-                    )
-            elif operation == "Sharpen":
-                params["intensity"] = st.sidebar.selectbox(
-                    "Sharpening Intensity",
-                    ["normal", "intense"]
-                )
-            elif operation == "Edge Detection":
+            if operation == "Edge Detection":
                 params["direction"] = st.sidebar.selectbox(
                     "Edge Direction",
                     ["both", "x", "y"]
@@ -195,9 +227,44 @@ def main():
                 )
                 params["enhance"] = st.sidebar.checkbox(
                     "Enhance Edges",
-                    value=False,
-                    help="Overlay detected edges in red on the original image"
+                    value=True,
+                    help="Overlay detected edges on the original image"
                 )
+                if params["enhance"]:
+                    color_option = st.sidebar.selectbox(
+                        "Edge Color",
+                        ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "White"]
+                    )
+                    # Map color names to BGR values
+                    color_map = {
+                        "Red": (0, 0, 255),
+                        "Green": (0, 255, 0),
+                        "Blue": (255, 0, 0),
+                        "Yellow": (0, 255, 255),
+                        "Cyan": (255, 255, 0),
+                        "Magenta": (255, 0, 255),
+                        "White": (255, 255, 255)
+                    }
+                    params["line_color"] = color_map[color_option]
+                    params["line_thickness"] = st.sidebar.slider(
+                        "Line Thickness",
+                        1, 5, 1
+                    )
+            elif operation == "Sharpen":
+                params["intensity"] = st.sidebar.selectbox(
+                    "Sharpening Intensity",
+                    ["normal", "intense"]
+                )
+            elif operation in ["Box Blur", "Gaussian Blur"]:
+                params["kernel_size"] = st.sidebar.slider(
+                    "Kernel Size",
+                    3, 31, 5, step=2
+                )
+                if operation == "Gaussian Blur":
+                    params["sigma"] = st.sidebar.slider(
+                        "Sigma",
+                        0, 10, 0
+                    )
             
             if st.sidebar.button("Process Video"):
                 video = cv2.VideoCapture(tfile.name)
@@ -237,6 +304,12 @@ def main():
                         file_name="processed_video.mp4",
                         mime="video/mp4"
                     )
+
+    # Add footer at the end
+    st.markdown(
+        '<div class="footer">Built by Li Fan • Powered by Streamlit & CV2</div>',
+        unsafe_allow_html=True
+    )
 
 if __name__ == "__main__":
     main() 
