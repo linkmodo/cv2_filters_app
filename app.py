@@ -41,18 +41,19 @@ def apply_sharpen(image, intensity='normal'):
                           [0, -4, 0]])
     return cv2.filter2D(image, -1, kernel)
 
-def apply_canny_edge(image, threshold1=100, threshold2=200, enhance=False, line_color=(0, 0, 255), line_thickness=1):
+def apply_canny_edge(image, threshold1=100, threshold2=200, enhance=False, line_color=(0, 0, 255), line_thickness=1, pre_blur=0):
     # Convert to grayscale if image is color
     if len(image.shape) == 3:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     else:
         gray = image
     
-    # Apply Gaussian blur to reduce noise
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    # Apply pre-processing Gaussian blur if specified
+    if pre_blur > 0:
+        gray = cv2.GaussianBlur(gray, (pre_blur, pre_blur), 0)
     
     # Apply Canny edge detection
-    edges = cv2.Canny(blurred, threshold1, threshold2)
+    edges = cv2.Canny(gray, threshold1, threshold2)
     
     if enhance:
         # Create a 3-channel image for colored output
@@ -73,7 +74,7 @@ def apply_canny_edge(image, threshold1=100, threshold2=200, enhance=False, line_
             edges = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
         return edges
 
-def apply_sobel_edge(image, direction='both', threshold=30, enhance=False, line_color=(0, 0, 255), line_thickness=1):
+def apply_sobel_edge(image, direction='both', threshold=30, enhance=False, line_color=(0, 0, 255), line_thickness=1, pre_blur=0):
     try:
         # Convert to grayscale if image is color
         if len(image.shape) == 3:
@@ -81,14 +82,15 @@ def apply_sobel_edge(image, direction='both', threshold=30, enhance=False, line_
         else:
             gray = image
 
-        # Apply Gaussian blur to reduce noise
-        blurred = cv2.GaussianBlur(gray, (3, 3), 0)
+        # Apply pre-processing Gaussian blur if specified
+        if pre_blur > 0:
+            gray = cv2.GaussianBlur(gray, (pre_blur, pre_blur), 0)
 
         # Calculate gradients
         if direction in ['x', 'both']:
-            sobelx = cv2.Sobel(blurred, cv2.CV_64F, 1, 0, ksize=3)
+            sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
         if direction in ['y', 'both']:
-            sobely = cv2.Sobel(blurred, cv2.CV_64F, 0, 1, ksize=3)
+            sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
 
         # Combine gradients based on direction
         if direction == 'x':
@@ -143,7 +145,8 @@ def process_image(image, operation, params):
             threshold=params.get("threshold", 30),
             enhance=params.get("enhance", False),
             line_color=params.get("line_color", (0, 0, 255)),
-            line_thickness=params.get("line_thickness", 1)
+            line_thickness=params.get("line_thickness", 1),
+            pre_blur=params.get("pre_blur", 0)
         )
     elif operation == "Edge Detection (Canny)":
         return apply_canny_edge(
@@ -152,7 +155,8 @@ def process_image(image, operation, params):
             threshold2=params.get("threshold2", 200),
             enhance=params.get("enhance", False),
             line_color=params.get("line_color", (0, 0, 255)),
-            line_thickness=params.get("line_thickness", 1)
+            line_thickness=params.get("line_thickness", 1),
+            pre_blur=params.get("pre_blur", 0)
         )
     elif operation == "Sharpen":
         return apply_sharpen(image, params.get("intensity", "normal"))
@@ -227,6 +231,16 @@ def main():
                 }
                 
                 if operation == "Edge Detection (Sobel)":
+                    # Add pre-blur option
+                    pre_blur = st.sidebar.slider(
+                        "Pre-processing Blur",
+                        0, 21, 0, step=2,
+                        help="Apply Gaussian blur before edge detection (0 for no blur)"
+                    )
+                    if pre_blur > 0:
+                        st.sidebar.info(f"Using {pre_blur}x{pre_blur} Gaussian blur kernel")
+                    params["pre_blur"] = pre_blur
+                    
                     params["direction"] = st.sidebar.selectbox(
                         "Edge Direction",
                         ["both", "x", "y"]
@@ -260,6 +274,16 @@ def main():
                             1, 5, 1
                         )
                 elif operation == "Edge Detection (Canny)":
+                    # Add pre-blur option
+                    pre_blur = st.sidebar.slider(
+                        "Pre-processing Blur",
+                        0, 21, 0, step=2,
+                        help="Apply Gaussian blur before edge detection (0 for no blur)"
+                    )
+                    if pre_blur > 0:
+                        st.sidebar.info(f"Using {pre_blur}x{pre_blur} Gaussian blur kernel")
+                    params["pre_blur"] = pre_blur
+                    
                     params["threshold1"] = st.sidebar.slider(
                         "Lower Threshold",
                         0, 255, 100
