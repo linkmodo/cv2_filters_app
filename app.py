@@ -41,16 +41,36 @@ def apply_sharpen(image, intensity='normal'):
                           [0, -4, 0]])
     return cv2.filter2D(image, -1, kernel)
 
-def apply_canny_edge(image, threshold1=100, threshold2=200, enhance=False, line_color=(0, 0, 255), line_thickness=1, pre_blur=0):
+def apply_preprocessing_blur(image, blur_type='gaussian', kernel_size=5, sigma=0):
+    """
+    Apply pre-processing blur to an image
+    Args:
+        image: Input image
+        blur_type: 'gaussian' or 'box'
+        kernel_size: Size of the blur kernel (must be odd)
+        sigma: Standard deviation for Gaussian blur
+    Returns:
+        Blurred image
+    """
+    # Ensure kernel size is odd
+    kernel_size = kernel_size if kernel_size % 2 == 1 else kernel_size + 1
+    
+    if blur_type == 'gaussian':
+        return cv2.GaussianBlur(image, (kernel_size, kernel_size), sigma)
+    else:  # box blur
+        return cv2.blur(image, (kernel_size, kernel_size))
+
+def apply_canny_edge(image, threshold1=100, threshold2=200, enhance=False, line_color=(0, 0, 255), 
+                    line_thickness=1, pre_blur=0, blur_type='gaussian', sigma=0):
     # Convert to grayscale if image is color
     if len(image.shape) == 3:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     else:
         gray = image
     
-    # Apply pre-processing Gaussian blur if specified
+    # Apply pre-processing blur if specified
     if pre_blur > 0:
-        gray = cv2.GaussianBlur(gray, (pre_blur, pre_blur), 0)
+        gray = apply_preprocessing_blur(gray, blur_type, pre_blur, sigma)
     
     # Apply Canny edge detection
     edges = cv2.Canny(gray, threshold1, threshold2)
@@ -74,7 +94,8 @@ def apply_canny_edge(image, threshold1=100, threshold2=200, enhance=False, line_
             edges = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
         return edges
 
-def apply_sobel_edge(image, direction='both', threshold=30, enhance=False, line_color=(0, 0, 255), line_thickness=1, pre_blur=0):
+def apply_sobel_edge(image, direction='both', threshold=30, enhance=False, line_color=(0, 0, 255), 
+                    line_thickness=1, pre_blur=0, blur_type='gaussian', sigma=0):
     try:
         # Convert to grayscale if image is color
         if len(image.shape) == 3:
@@ -82,9 +103,9 @@ def apply_sobel_edge(image, direction='both', threshold=30, enhance=False, line_
         else:
             gray = image
 
-        # Apply pre-processing Gaussian blur if specified
+        # Apply pre-processing blur if specified
         if pre_blur > 0:
-            gray = cv2.GaussianBlur(gray, (pre_blur, pre_blur), 0)
+            gray = apply_preprocessing_blur(gray, blur_type, pre_blur, sigma)
 
         # Calculate gradients
         if direction in ['x', 'both']:
@@ -146,7 +167,9 @@ def process_image(image, operation, params):
             enhance=params.get("enhance", False),
             line_color=params.get("line_color", (0, 0, 255)),
             line_thickness=params.get("line_thickness", 1),
-            pre_blur=params.get("pre_blur", 0)
+            pre_blur=params.get("pre_blur", 0),
+            blur_type=params.get("blur_type", "gaussian"),
+            sigma=params.get("sigma", 0)
         )
     elif operation == "Edge Detection (Canny)":
         return apply_canny_edge(
@@ -156,7 +179,9 @@ def process_image(image, operation, params):
             enhance=params.get("enhance", False),
             line_color=params.get("line_color", (0, 0, 255)),
             line_thickness=params.get("line_thickness", 1),
-            pre_blur=params.get("pre_blur", 0)
+            pre_blur=params.get("pre_blur", 0),
+            blur_type=params.get("blur_type", "gaussian"),
+            sigma=params.get("sigma", 0)
         )
     elif operation == "Sharpen":
         return apply_sharpen(image, params.get("intensity", "normal"))
@@ -230,92 +255,101 @@ def main():
                     "saturation": saturation
                 }
                 
-                if operation == "Edge Detection (Sobel)":
+                if operation == "Edge Detection (Sobel)" or operation == "Edge Detection (Canny)":
+                    st.sidebar.subheader("Pre-processing Options")
                     # Add pre-blur option
                     pre_blur = st.sidebar.slider(
-                        "Pre-processing Blur",
+                        "Pre-processing Blur Kernel Size",
                         0, 21, 0, step=2,
-                        help="Apply Gaussian blur before edge detection (0 for no blur)"
+                        help="Apply blur before edge detection (0 for no blur)"
                     )
                     if pre_blur > 0:
-                        st.sidebar.info(f"Using {pre_blur}x{pre_blur} Gaussian blur kernel")
+                        blur_type = st.sidebar.selectbox(
+                            "Blur Type",
+                            ["gaussian", "box"],
+                            help="Choose the type of blur to apply"
+                        )
+                        params["blur_type"] = blur_type
+                        
+                        if blur_type == "gaussian":
+                            sigma = st.sidebar.slider(
+                                "Gaussian Sigma",
+                                0.1, 5.0, 1.0, 
+                                help="Standard deviation for Gaussian blur"
+                            )
+                            params["sigma"] = sigma
+                        
+                        st.sidebar.info(f"Using {pre_blur}x{pre_blur} {blur_type} blur kernel")
+                    
                     params["pre_blur"] = pre_blur
                     
-                    params["direction"] = st.sidebar.selectbox(
-                        "Edge Direction",
-                        ["both", "x", "y"]
-                    )
-                    params["threshold"] = st.sidebar.slider(
-                        "Edge Threshold",
-                        0, 255, 30
-                    )
-                    params["enhance"] = st.sidebar.checkbox(
-                        "Enhance Edges",
-                        value=True,
-                        help="Overlay detected edges on the original image"
-                    )
-                    if params["enhance"]:
-                        color_option = st.sidebar.selectbox(
-                            "Edge Color",
-                            ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "White"]
+                    st.sidebar.subheader("Edge Detection Options")
+                    if operation == "Edge Detection (Sobel)":
+                        params["direction"] = st.sidebar.selectbox(
+                            "Edge Direction",
+                            ["both", "x", "y"]
                         )
-                        color_map = {
-                            "Red": (0, 0, 255),
-                            "Green": (0, 255, 0),
-                            "Blue": (255, 0, 0),
-                            "Yellow": (0, 255, 255),
-                            "Cyan": (255, 255, 0),
-                            "Magenta": (255, 0, 255),
-                            "White": (255, 255, 255)
-                        }
-                        params["line_color"] = color_map[color_option]
-                        params["line_thickness"] = st.sidebar.slider(
-                            "Line Thickness",
-                            1, 5, 1
+                        params["threshold"] = st.sidebar.slider(
+                            "Edge Threshold",
+                            0, 255, 30
                         )
-                elif operation == "Edge Detection (Canny)":
-                    # Add pre-blur option
-                    pre_blur = st.sidebar.slider(
-                        "Pre-processing Blur",
-                        0, 21, 0, step=2,
-                        help="Apply Gaussian blur before edge detection (0 for no blur)"
-                    )
-                    if pre_blur > 0:
-                        st.sidebar.info(f"Using {pre_blur}x{pre_blur} Gaussian blur kernel")
-                    params["pre_blur"] = pre_blur
-                    
-                    params["threshold1"] = st.sidebar.slider(
-                        "Lower Threshold",
-                        0, 255, 100
-                    )
-                    params["threshold2"] = st.sidebar.slider(
-                        "Upper Threshold",
-                        0, 255, 200
-                    )
-                    params["enhance"] = st.sidebar.checkbox(
-                        "Enhance Edges",
-                        value=True,
-                        help="Overlay detected edges on the original image"
-                    )
-                    if params["enhance"]:
-                        color_option = st.sidebar.selectbox(
-                            "Edge Color",
-                            ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "White"]
+                        params["enhance"] = st.sidebar.checkbox(
+                            "Enhance Edges",
+                            value=True,
+                            help="Overlay detected edges on the original image"
                         )
-                        color_map = {
-                            "Red": (0, 0, 255),
-                            "Green": (0, 255, 0),
-                            "Blue": (255, 0, 0),
-                            "Yellow": (0, 255, 255),
-                            "Cyan": (255, 255, 0),
-                            "Magenta": (255, 0, 255),
-                            "White": (255, 255, 255)
-                        }
-                        params["line_color"] = color_map[color_option]
-                        params["line_thickness"] = st.sidebar.slider(
-                            "Line Thickness",
-                            1, 5, 1
+                        if params["enhance"]:
+                            color_option = st.sidebar.selectbox(
+                                "Edge Color",
+                                ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "White"]
+                            )
+                            color_map = {
+                                "Red": (0, 0, 255),
+                                "Green": (0, 255, 0),
+                                "Blue": (255, 0, 0),
+                                "Yellow": (0, 255, 255),
+                                "Cyan": (255, 255, 0),
+                                "Magenta": (255, 0, 255),
+                                "White": (255, 255, 255)
+                            }
+                            params["line_color"] = color_map[color_option]
+                            params["line_thickness"] = st.sidebar.slider(
+                                "Line Thickness",
+                                1, 5, 1
+                            )
+                    else:  # Canny
+                        params["threshold1"] = st.sidebar.slider(
+                            "Lower Threshold",
+                            0, 255, 100
                         )
+                        params["threshold2"] = st.sidebar.slider(
+                            "Upper Threshold",
+                            0, 255, 200
+                        )
+                        params["enhance"] = st.sidebar.checkbox(
+                            "Enhance Edges",
+                            value=True,
+                            help="Overlay detected edges on the original image"
+                        )
+                        if params["enhance"]:
+                            color_option = st.sidebar.selectbox(
+                                "Edge Color",
+                                ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "White"]
+                            )
+                            color_map = {
+                                "Red": (0, 0, 255),
+                                "Green": (0, 255, 0),
+                                "Blue": (255, 0, 0),
+                                "Yellow": (0, 255, 255),
+                                "Cyan": (255, 255, 0),
+                                "Magenta": (255, 0, 255),
+                                "White": (255, 255, 255)
+                            }
+                            params["line_color"] = color_map[color_option]
+                            params["line_thickness"] = st.sidebar.slider(
+                                "Line Thickness",
+                                1, 5, 1
+                            )
                 elif operation == "Sharpen":
                     params["intensity"] = st.sidebar.selectbox(
                         "Sharpening Intensity",
