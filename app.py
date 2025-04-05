@@ -408,11 +408,11 @@ def main():
                         )
                         sigma_color = st.sidebar.slider(
                             "Color Sigma",
-                            1, 100, 75, step=1
+                            1, 500, 75, step=1
                         )
                         sigma_space = st.sidebar.slider(
                             "Space Sigma",
-                            1, 100, 75, step=1
+                            1, 500, 75, step=1
                         )
                         params["d"] = d
                         params["sigma_color"] = sigma_color
