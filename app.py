@@ -445,11 +445,7 @@ def main():
                                 processed_image = process_image(processed_image, operation, params)
                         
                         # Display results
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.image(image, caption="Original Image", channels="BGR")
-                        with col2:
-                            st.image(processed_image, caption="Processed Image", channels="BGR")
+                        st.image(processed_image, caption="Processed Image", channels="BGR")
                         
                         # Create download button for processed image
                         processed_pil = Image.fromarray(cv2.cvtColor(processed_image, cv2.COLOR_BGR2RGB))
