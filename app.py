@@ -75,16 +75,16 @@ def apply_canny_edge(image, threshold1=100, threshold2=200, enhance=False, line_
     # Apply Canny edge detection
     edges = cv2.Canny(gray, threshold1, threshold2)
     
-    # Apply line thickness regardless of enhance setting
-    if line_thickness > 1:
-        kernel = np.ones((line_thickness, line_thickness), np.uint8)
-        edges = cv2.dilate(edges, kernel, iterations=1)
-    
     if enhance:
         # Create a 3-channel image for colored output
         enhanced = image.copy()
         if len(enhanced.shape) == 2:
             enhanced = cv2.cvtColor(enhanced, cv2.COLOR_GRAY2BGR)
+        
+        # Create a mask for the edges with specified thickness
+        if line_thickness > 1:
+            kernel = np.ones((line_thickness, line_thickness), np.uint8)
+            edges = cv2.dilate(edges, kernel, iterations=1)
         
         # Overlay edges with specified color
         enhanced[edges > 0] = line_color
@@ -127,16 +127,16 @@ def apply_sobel_edge(image, direction='both', threshold=30, enhance=False, line_
         # Apply threshold
         _, binary_edges = cv2.threshold(gradient, threshold, 255, cv2.THRESH_BINARY)
 
-        # Apply line thickness regardless of enhance setting
-        if line_thickness > 1:
-            kernel = np.ones((line_thickness, line_thickness), np.uint8)
-            binary_edges = cv2.dilate(binary_edges, kernel, iterations=1)
-
         if enhance:
             # Create a 3-channel image for colored output
             enhanced = image.copy()
             if len(enhanced.shape) == 2:
                 enhanced = cv2.cvtColor(enhanced, cv2.COLOR_GRAY2BGR)
+            
+            # Create a mask for the edges with specified thickness
+            if line_thickness > 1:
+                kernel = np.ones((line_thickness, line_thickness), np.uint8)
+                binary_edges = cv2.dilate(binary_edges, kernel, iterations=1)
             
             # Overlay edges with specified color
             enhanced[binary_edges > 0] = line_color
