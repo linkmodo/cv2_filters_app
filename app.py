@@ -237,6 +237,12 @@ def main():
             padding: 10px;
             font-size: 14px;
         }
+        .filter-container {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
         </style>
         """,
         unsafe_allow_html=True
@@ -270,164 +276,180 @@ def main():
                 contrast = st.sidebar.slider("Contrast", 0.0, 3.0, 1.0)
                 saturation = st.sidebar.slider("Saturation", 0.0, 3.0, 1.0)
                 
-                # Operation selection
-                st.sidebar.subheader("Filter Selection")
-                operation = st.sidebar.selectbox(
-                    "Select Operation",
-                    ["Edge Detection (Sobel)", "Edge Detection (Canny)", "Sharpen", "Box Blur", "Gaussian Blur", "Bilateral Filter", "Median Filter"]
-                )
+                # Filter cascade controls
+                st.sidebar.subheader("Filter Cascade")
+                num_filters = st.sidebar.number_input("Number of Filters", 1, 5, 1)
                 
-                params = {
-                    "brightness": brightness,
-                    "contrast": contrast,
-                    "saturation": saturation
-                }
+                # Initialize filter parameters
+                filter_params = []
+                processed_image = image.copy()
                 
-                if operation == "Edge Detection (Sobel)" or operation == "Edge Detection (Canny)":
-                    st.sidebar.subheader("Pre-processing Options")
-                    # Add pre-blur option
-                    pre_blur = st.sidebar.slider(
-                        "Pre-processing Blur Kernel Size",
-                        0, 21, 0, step=2,
-                        help="Apply blur before edge detection (0 for no blur)"
-                    )
-                    if pre_blur > 0:
-                        blur_type = st.sidebar.selectbox(
-                            "Blur Type",
-                            ["gaussian", "box"],
-                            help="Choose the type of blur to apply"
-                        )
-                        params["blur_type"] = blur_type
+                # Create filter containers
+                for i in range(num_filters):
+                    with st.sidebar.expander(f"Filter {i+1}", expanded=True):
+                        st.markdown('<div class="filter-container">', unsafe_allow_html=True)
                         
-                        if blur_type == "gaussian":
-                            sigma = st.sidebar.slider(
-                                "Gaussian Sigma",
-                                0.1, 5.0, 1.0, 
-                                help="Standard deviation for Gaussian blur"
-                            )
-                            params["sigma"] = sigma
+                        # Operation selection
+                        operation = st.selectbox(
+                            f"Operation {i+1}",
+                            ["None", "Edge Detection (Sobel)", "Edge Detection (Canny)", "Sharpen", 
+                             "Box Blur", "Gaussian Blur", "Bilateral Filter", "Median Filter"],
+                            key=f"operation_{i}"
+                        )
                         
-                        st.sidebar.info(f"Using {pre_blur}x{pre_blur} {blur_type} blur kernel")
-                    
-                    params["pre_blur"] = pre_blur
-                    
-                    st.sidebar.subheader("Edge Detection Options")
-                    if operation == "Edge Detection (Sobel)":
-                        params["direction"] = st.sidebar.selectbox(
-                            "Edge Direction",
-                            ["both", "x", "y"]
-                        )
-                        params["threshold"] = st.sidebar.slider(
-                            "Edge Threshold",
-                            0, 255, 30
-                        )
-                        params["enhance"] = st.sidebar.checkbox(
-                            "Enhance Edges",
-                            value=True,
-                            help="Overlay detected edges on the original image"
-                        )
-                        if params["enhance"]:
-                            color_option = st.sidebar.selectbox(
-                                "Edge Color",
-                                ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "White"]
-                            )
-                            color_map = {
-                                "Red": (0, 0, 255),
-                                "Green": (0, 255, 0),
-                                "Blue": (255, 0, 0),
-                                "Yellow": (0, 255, 255),
-                                "Cyan": (255, 255, 0),
-                                "Magenta": (255, 0, 255),
-                                "White": (255, 255, 255)
-                            }
-                            params["line_color"] = color_map[color_option]
-                            params["line_thickness"] = st.sidebar.slider(
-                                "Line Thickness",
-                                1, 5, 1
-                            )
-                    else:  # Canny
-                        params["threshold1"] = st.sidebar.slider(
-                            "Lower Threshold",
-                            0, 255, 100
-                        )
-                        params["threshold2"] = st.sidebar.slider(
-                            "Upper Threshold",
-                            0, 255, 200
-                        )
-                        params["enhance"] = st.sidebar.checkbox(
-                            "Enhance Edges",
-                            value=True,
-                            help="Overlay detected edges on the original image"
-                        )
-                        if params["enhance"]:
-                            color_option = st.sidebar.selectbox(
-                                "Edge Color",
-                                ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "White"]
-                            )
-                            color_map = {
-                                "Red": (0, 0, 255),
-                                "Green": (0, 255, 0),
-                                "Blue": (255, 0, 0),
-                                "Yellow": (0, 255, 255),
-                                "Cyan": (255, 255, 0),
-                                "Magenta": (255, 0, 255),
-                                "White": (255, 255, 255)
-                            }
-                            params["line_color"] = color_map[color_option]
-                            params["line_thickness"] = st.sidebar.slider(
-                                "Line Thickness",
-                                1, 5, 1
-                            )
-                elif operation == "Sharpen":
-                    params["intensity"] = st.sidebar.selectbox(
-                        "Sharpening Intensity",
-                        ["normal", "intense"]
-                    )
-                elif operation in ["Box Blur", "Gaussian Blur", "Bilateral Filter", "Median Filter"]:
-                    if operation == "Box Blur":
-                        kernel_size = st.sidebar.slider(
-                            "Kernel Size",
-                            3, 31, 5, step=2
-                        )
-                        params["kernel_size"] = kernel_size
-                    elif operation == "Gaussian Blur":
-                        kernel_size = st.sidebar.slider(
-                            "Kernel Size",
-                            3, 31, 5, step=2
-                        )
-                        sigma = st.sidebar.slider(
-                            "Sigma",
-                            0, 10, 0
-                        )
-                        params["kernel_size"] = kernel_size
-                        params["sigma"] = sigma
-                    elif operation == "Bilateral Filter":
-                        d = st.sidebar.slider(
-                            "Diameter",
-                            1, 15, 9, step=2
-                        )
-                        sigma_color = st.sidebar.slider(
-                            "Color Sigma",
-                            1, 500, 75, step=1
-                        )
-                        sigma_space = st.sidebar.slider(
-                            "Space Sigma",
-                            1, 500, 75, step=1
-                        )
-                        params["d"] = d
-                        params["sigma_color"] = sigma_color
-                        params["sigma_space"] = sigma_space
-                    elif operation == "Median Filter":
-                        kernel_size = st.sidebar.slider(
-                            "Kernel Size",
-                            3, 31, 5, step=2
-                        )
-                        params["kernel_size"] = kernel_size
+                        params = {}
+                        
+                        if operation != "None":
+                            if operation == "Edge Detection (Sobel)" or operation == "Edge Detection (Canny)":
+                                st.subheader("Pre-processing Options")
+                                pre_blur = st.slider(
+                                    "Pre-processing Blur Kernel Size",
+                                    0, 21, 0, step=2,
+                                    key=f"pre_blur_{i}"
+                                )
+                                if pre_blur > 0:
+                                    blur_type = st.selectbox(
+                                        "Blur Type",
+                                        ["gaussian", "box"],
+                                        key=f"blur_type_{i}"
+                                    )
+                                    params["blur_type"] = blur_type
+                                    
+                                    if blur_type == "gaussian":
+                                        sigma = st.slider(
+                                            "Gaussian Sigma",
+                                            0.1, 5.0, 1.0,
+                                            key=f"sigma_{i}"
+                                        )
+                                        params["sigma"] = sigma
+                                
+                                params["pre_blur"] = pre_blur
+                                
+                                st.subheader("Edge Detection Options")
+                                if operation == "Edge Detection (Sobel)":
+                                    params["direction"] = st.selectbox(
+                                        "Edge Direction",
+                                        ["both", "x", "y"],
+                                        key=f"direction_{i}"
+                                    )
+                                    params["threshold"] = st.slider(
+                                        "Edge Threshold",
+                                        0, 255, 30,
+                                        key=f"threshold_{i}"
+                                    )
+                                else:  # Canny
+                                    params["threshold1"] = st.slider(
+                                        "Lower Threshold",
+                                        0, 255, 100,
+                                        key=f"threshold1_{i}"
+                                    )
+                                    params["threshold2"] = st.slider(
+                                        "Upper Threshold",
+                                        0, 255, 200,
+                                        key=f"threshold2_{i}"
+                                    )
+                                
+                                params["enhance"] = st.checkbox(
+                                    "Enhance Edges",
+                                    value=True,
+                                    key=f"enhance_{i}"
+                                )
+                                if params["enhance"]:
+                                    color_option = st.selectbox(
+                                        "Edge Color",
+                                        ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "White"],
+                                        key=f"color_{i}"
+                                    )
+                                    color_map = {
+                                        "Red": (0, 0, 255),
+                                        "Green": (0, 255, 0),
+                                        "Blue": (255, 0, 0),
+                                        "Yellow": (0, 255, 255),
+                                        "Cyan": (255, 255, 0),
+                                        "Magenta": (255, 0, 255),
+                                        "White": (255, 255, 255)
+                                    }
+                                    params["line_color"] = color_map[color_option]
+                                    params["line_thickness"] = st.slider(
+                                        "Line Thickness",
+                                        1, 5, 1,
+                                        key=f"thickness_{i}"
+                                    )
+                            
+                            elif operation == "Sharpen":
+                                params["intensity"] = st.selectbox(
+                                    "Sharpening Intensity",
+                                    ["normal", "intense"],
+                                    key=f"intensity_{i}"
+                                )
+                            
+                            elif operation == "Box Blur":
+                                params["kernel_size"] = st.slider(
+                                    "Kernel Size",
+                                    3, 31, 5, step=2,
+                                    key=f"box_kernel_{i}"
+                                )
+                            
+                            elif operation == "Gaussian Blur":
+                                params["kernel_size"] = st.slider(
+                                    "Kernel Size",
+                                    3, 31, 5, step=2,
+                                    key=f"gauss_kernel_{i}"
+                                )
+                                params["sigma"] = st.slider(
+                                    "Sigma",
+                                    0, 10, 0,
+                                    key=f"gauss_sigma_{i}"
+                                )
+                            
+                            elif operation == "Bilateral Filter":
+                                params["d"] = st.slider(
+                                    "Diameter",
+                                    1, 15, 9, step=2,
+                                    key=f"bilateral_d_{i}"
+                                )
+                                params["sigma_color"] = st.slider(
+                                    "Color Sigma",
+                                    1, 100, 75, step=1,
+                                    key=f"bilateral_color_{i}"
+                                )
+                                params["sigma_space"] = st.slider(
+                                    "Space Sigma",
+                                    1, 100, 75, step=1,
+                                    key=f"bilateral_space_{i}"
+                                )
+                            
+                            elif operation == "Median Filter":
+                                params["kernel_size"] = st.slider(
+                                    "Kernel Size",
+                                    3, 31, 5, step=2,
+                                    key=f"median_kernel_{i}"
+                                )
+                        
+                        filter_params.append((operation, params))
+                        st.markdown('</div>', unsafe_allow_html=True)
                 
-                if st.sidebar.button("Apply Filter"):
+                if st.sidebar.button("Apply Filters"):
                     try:
-                        processed_image = process_image(image, operation, params)
-                        st.image(processed_image, caption="Processed Image", channels="BGR")
+                        # Apply image adjustments first
+                        processed_image = adjust_image(
+                            processed_image,
+                            brightness=brightness,
+                            contrast=contrast,
+                            saturation=saturation
+                        )
+                        
+                        # Apply filters in sequence
+                        for operation, params in filter_params:
+                            if operation != "None":
+                                processed_image = process_image(processed_image, operation, params)
+                        
+                        # Display results
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.image(image, caption="Original Image", channels="BGR")
+                        with col2:
+                            st.image(processed_image, caption="Processed Image", channels="BGR")
                         
                         # Create download button for processed image
                         processed_pil = Image.fromarray(cv2.cvtColor(processed_image, cv2.COLOR_BGR2RGB))
@@ -441,7 +463,7 @@ def main():
                         )
                     except Exception as e:
                         st.error(f"Error processing image: {str(e)}")
-                
+            
             elif file_type.startswith('video'):
                 # Handle video processing
                 tfile = tempfile.NamedTemporaryFile(delete=False)
