@@ -149,6 +149,26 @@ def apply_sobel_edge(image, direction='both', threshold=30, enhance=False, line_
         st.error(f"Error in edge detection: {str(e)}")
         return image
 
+def apply_bilateral_filter(image, d, sigma_color, sigma_space):
+    """Apply bilateral filter to the image.
+    
+    Args:
+        image: Input image
+        d: Diameter of each pixel neighborhood
+        sigma_color: Filter sigma in the color space
+        sigma_space: Filter sigma in the coordinate space
+    """
+    return cv2.bilateralFilter(image, d, sigma_color, sigma_space)
+
+def apply_median_filter(image, kernel_size):
+    """Apply median filter to the image.
+    
+    Args:
+        image: Input image
+        kernel_size: Size of the kernel (must be odd)
+    """
+    return cv2.medianBlur(image, kernel_size)
+
 def process_image(image, operation, params):
     # Apply image adjustments first if they exist
     if "brightness" in params or "contrast" in params or "saturation" in params:
@@ -189,6 +209,14 @@ def process_image(image, operation, params):
         return apply_box_blur(image, params["kernel_size"])
     elif operation == "Gaussian Blur":
         return apply_gaussian_blur(image, params["kernel_size"], params.get("sigma", 0))
+    elif operation == "Bilateral Filter":
+        d = params["d"]
+        sigma_color = params["sigma_color"]
+        sigma_space = params["sigma_space"]
+        return apply_bilateral_filter(image, d, sigma_color, sigma_space)
+    elif operation == "Median Filter":
+        kernel_size = params["kernel_size"]
+        return apply_median_filter(image, kernel_size)
     return image
 
 def main():
@@ -246,7 +274,7 @@ def main():
                 st.sidebar.subheader("Filter Selection")
                 operation = st.sidebar.selectbox(
                     "Select Operation",
-                    ["Edge Detection (Sobel)", "Edge Detection (Canny)", "Sharpen", "Box Blur", "Gaussian Blur"]
+                    ["Edge Detection (Sobel)", "Edge Detection (Canny)", "Sharpen", "Box Blur", "Gaussian Blur", "Bilateral Filter", "Median Filter"]
                 )
                 
                 params = {
@@ -355,16 +383,46 @@ def main():
                         "Sharpening Intensity",
                         ["normal", "intense"]
                     )
-                elif operation in ["Box Blur", "Gaussian Blur"]:
-                    params["kernel_size"] = st.sidebar.slider(
-                        "Kernel Size",
-                        3, 31, 5, step=2
-                    )
-                    if operation == "Gaussian Blur":
-                        params["sigma"] = st.sidebar.slider(
+                elif operation in ["Box Blur", "Gaussian Blur", "Bilateral Filter", "Median Filter"]:
+                    if operation == "Box Blur":
+                        kernel_size = st.sidebar.slider(
+                            "Kernel Size",
+                            3, 31, 5, step=2
+                        )
+                        params["kernel_size"] = kernel_size
+                    elif operation == "Gaussian Blur":
+                        kernel_size = st.sidebar.slider(
+                            "Kernel Size",
+                            3, 31, 5, step=2
+                        )
+                        sigma = st.sidebar.slider(
                             "Sigma",
                             0, 10, 0
                         )
+                        params["kernel_size"] = kernel_size
+                        params["sigma"] = sigma
+                    elif operation == "Bilateral Filter":
+                        d = st.sidebar.slider(
+                            "Diameter",
+                            1, 15, 9, step=2
+                        )
+                        sigma_color = st.sidebar.slider(
+                            "Color Sigma",
+                            1, 100, 75, step=1
+                        )
+                        sigma_space = st.sidebar.slider(
+                            "Space Sigma",
+                            1, 100, 75, step=1
+                        )
+                        params["d"] = d
+                        params["sigma_color"] = sigma_color
+                        params["sigma_space"] = sigma_space
+                    elif operation == "Median Filter":
+                        kernel_size = st.sidebar.slider(
+                            "Kernel Size",
+                            3, 31, 5, step=2
+                        )
+                        params["kernel_size"] = kernel_size
                 
                 if st.sidebar.button("Apply Filter"):
                     try:
@@ -392,7 +450,7 @@ def main():
                 st.sidebar.header("Processing Options")
                 operation = st.sidebar.selectbox(
                     "Select Operation",
-                    ["Edge Detection (Sobel)", "Edge Detection (Canny)", "Sharpen", "Box Blur", "Gaussian Blur"]
+                    ["Edge Detection (Sobel)", "Edge Detection (Canny)", "Sharpen", "Box Blur", "Gaussian Blur", "Bilateral Filter", "Median Filter"]
                 )
                 
                 params = {}
@@ -467,16 +525,46 @@ def main():
                         "Sharpening Intensity",
                         ["normal", "intense"]
                     )
-                elif operation in ["Box Blur", "Gaussian Blur"]:
-                    params["kernel_size"] = st.sidebar.slider(
-                        "Kernel Size",
-                        3, 31, 5, step=2
-                    )
-                    if operation == "Gaussian Blur":
-                        params["sigma"] = st.sidebar.slider(
+                elif operation in ["Box Blur", "Gaussian Blur", "Bilateral Filter", "Median Filter"]:
+                    if operation == "Box Blur":
+                        kernel_size = st.sidebar.slider(
+                            "Kernel Size",
+                            3, 31, 5, step=2
+                        )
+                        params["kernel_size"] = kernel_size
+                    elif operation == "Gaussian Blur":
+                        kernel_size = st.sidebar.slider(
+                            "Kernel Size",
+                            3, 31, 5, step=2
+                        )
+                        sigma = st.sidebar.slider(
                             "Sigma",
                             0, 10, 0
                         )
+                        params["kernel_size"] = kernel_size
+                        params["sigma"] = sigma
+                    elif operation == "Bilateral Filter":
+                        d = st.sidebar.slider(
+                            "Diameter",
+                            1, 15, 9, step=2
+                        )
+                        sigma_color = st.sidebar.slider(
+                            "Color Sigma",
+                            1, 100, 75, step=1
+                        )
+                        sigma_space = st.sidebar.slider(
+                            "Space Sigma",
+                            1, 100, 75, step=1
+                        )
+                        params["d"] = d
+                        params["sigma_color"] = sigma_color
+                        params["sigma_space"] = sigma_space
+                    elif operation == "Median Filter":
+                        kernel_size = st.sidebar.slider(
+                            "Kernel Size",
+                            3, 31, 5, step=2
+                        )
+                        params["kernel_size"] = kernel_size
                 
                 if st.sidebar.button("Process Video"):
                     video = cv2.VideoCapture(tfile.name)
