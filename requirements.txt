@@ -1,7 +1,22 @@
-streamlit
+streamlit>=1.44.0
 # Use either opencv-python-headless OR opencv-python (not both)
 # If webcam doesn't work with headless version, try the regular one
+opencv-python-headless
+# opencv-python  # Uncomment this and comment the line above if webcam is not working
+numpy>=1.23.0
+Pillow>=9.0.0
+# Additional dependencies that might help with webcam functionality
+matplotlib>=3.5.0  # For visualization if needed
+python-dateutil>=2.8.2  # Required by pandas (streamlit dependency)
+pytz>=2022.1  # Required by pandas (streamlit dependency)
+
+# Replace with:
+streamlit>=1.44.0
+# Use either opencv-python-headless OR opencv-python (not both)
+# The headless version doesn't support webcam functionality properly
 # opencv-python-headless
-opencv-python  # Uncomment this and comment the line above if webcam is not working
-numpy
-Pillow
+# Use the full version for webcam support
+opencv-python>=4.6.0  # Full version with GUI support for webcam access
+opencv-contrib-python>=4.6.0  # Additional modules that might help with camera detection
+numpy>=1.23.0
+Pillow>=9.0.0
