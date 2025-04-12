@@ -1,8 +1,4 @@
 streamlit
-opencv-python-headless
-numpy
-Pillow
-streamlit
 # Use either opencv-python-headless OR opencv-python (not both)
 # If webcam doesn't work with headless version, try the regular one
 opencv-python-headless
