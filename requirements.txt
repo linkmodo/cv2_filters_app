@@ -1,7 +1,7 @@
 streamlit
 # Use either opencv-python-headless OR opencv-python (not both)
 # If webcam doesn't work with headless version, try the regular one
-opencv-python-headless
-# opencv-python  # Uncomment this and comment the line above if webcam is not working
+# opencv-python-headless
+opencv-python  # Uncomment this and comment the line above if webcam is not working
 numpy
 Pillow
