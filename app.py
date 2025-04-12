@@ -249,6 +249,24 @@ def apply_adaptive_threshold(image, max_value=255, adaptive_method="mean", thres
     
     return thresholded
 
+def detect_cameras(max_cameras=10):
+    """
+    Detect available camera devices.
+    
+    Args:
+        max_cameras: Maximum number of camera indices to check
+    
+    Returns:
+        List of available camera indices
+    """
+    available_cameras = []
+    for i in range(max_cameras):
+        cap = cv2.VideoCapture(i)
+        if cap.isOpened():
+            available_cameras.append(i)
+            cap.release()
+    return available_cameras
+
 def process_image(image, operation, params):
     # Apply image adjustments first if they exist
     if "brightness" in params or "contrast" in params or "saturation" in params:
@@ -808,6 +826,21 @@ def main():
     else:  # Webcam
         st.header("Webcam Processing")
         
+        # Camera detection
+        webcam_col1, webcam_col2 = st.columns([3, 1])
+        
+        with webcam_col2:
+            if st.button("Scan for Cameras"):
+                with st.spinner("Scanning for available cameras..."):
+                    available_cameras = detect_cameras()
+                    if available_cameras:
+                        st.success(f"Found {len(available_cameras)} camera(s): {available_cameras}")
+                    else:
+                        st.error("No cameras detected. Please check your connections.")
+        
+        with webcam_col1:
+            st.info("If your webcam isn't working, try clicking 'Scan for Cameras' to find available camera indices, or try installing the 'opencv-python-headless' package.")
+        
         # Sidebar controls for webcam
         st.sidebar.header("Processing Options")
         operation = st.sidebar.selectbox(
@@ -963,6 +996,16 @@ def main():
                 0, 20, 2, step=1
             )
         
+        # Add option to select webcam source
+        camera_index = st.sidebar.selectbox(
+            "Camera Source", 
+            options=[0, 1, 2, 3, "Custom"],
+            help="Select webcam device index. Try different numbers if default (0) doesn't work."
+        )
+        
+        if camera_index == "Custom":
+            camera_index = st.sidebar.number_input("Enter custom camera index", min_value=0, value=0)
+        
         # Display webcam
         webcam_placeholder = st.empty()
         start_button = st.button("Start Processing")
@@ -970,12 +1013,47 @@ def main():
         
         if start_button:
             try:
-                # Initialize webcam
-                cap = cv2.VideoCapture(0)
+                # Display attempting to connect message
+                connecting_message = st.info(f"Attempting to connect to camera index {camera_index}...")
                 
+                # Try different camera APIs (useful for Windows especially)
+                # First try default API
+                cap = cv2.VideoCapture(camera_index)
+                
+                # If that fails, try DirectShow API (on Windows)
                 if not cap.isOpened():
-                    st.error("Could not open webcam. Please check your camera connection.")
+                    st.info("First attempt failed. Trying DirectShow API...")
+                    # DirectShow (DSHOW) API - often works better on Windows
+                    cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+                
+                # If still fails, try using Media Foundation API (on newer Windows)
+                if not cap.isOpened():
+                    st.info("Second attempt failed. Trying Media Foundation API...")
+                    # Media Foundation API - for Windows 8 and newer
+                    cap = cv2.VideoCapture(camera_index, cv2.CAP_MSMF)
+                
+                # Check if any of the attempts successfully opened the camera
+                if not cap.isOpened():
+                    st.error(f"Could not open webcam at index {camera_index}. Please try a different index or check your camera connection.")
+                    
+                    # Add more detailed troubleshooting suggestions
+                    st.warning("""
+                    Troubleshooting tips:
+                    1. Try selecting a different camera index from the dropdown
+                    2. Check if your webcam is connected properly
+                    3. Make sure no other application is using your webcam
+                    4. For Windows users, check if privacy settings allow browser access to camera
+                    5. Try running the app with 'pip install opencv-python' instead of 'opencv-python-headless'
+                    6. Try restarting your computer
+                    """)
+                    
+                    # Suggest alternatives
+                    st.info("Alternative: If you're unable to use your webcam directly, consider taking a photo with your device and uploading it through the 'File Upload' option.")
                 else:
+                    # Clear connecting message
+                    connecting_message.empty()
+                    st.success(f"Successfully connected to camera at index {camera_index}")
+                    
                     is_running = True
                     while is_running and not stop_button:
                         # Read frame
