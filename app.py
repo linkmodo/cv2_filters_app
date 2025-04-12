@@ -249,24 +249,6 @@ def apply_adaptive_threshold(image, max_value=255, adaptive_method="mean", thres
     
     return thresholded
 
-def detect_cameras(max_cameras=10):
-    """
-    Detect available camera devices.
-    
-    Args:
-        max_cameras: Maximum number of camera indices to check
-    
-    Returns:
-        List of available camera indices
-    """
-    available_cameras = []
-    for i in range(max_cameras):
-        cap = cv2.VideoCapture(i)
-        if cap.isOpened():
-            available_cameras.append(i)
-            cap.release()
-    return available_cameras
-
 def process_image(image, operation, params):
     # Apply image adjustments first if they exist
     if "brightness" in params or "contrast" in params or "saturation" in params:
@@ -362,85 +344,81 @@ def main():
         unsafe_allow_html=True
     )
     
-    # Input source selection
-    input_source = st.radio("Select Input Source", ["File Upload", "Webcam"])
+    # File uploader
+    uploaded_file = st.file_uploader("Choose an image or video file", type=["jpg", "jpeg", "png", "mp4"])
     
-    if input_source == "File Upload":
-        # File uploader
-        uploaded_file = st.file_uploader("Choose an image or video file", type=["jpg", "jpeg", "png", "mp4"])
-        
-        if uploaded_file is not None:
-            try:
-                # Determine if it's an image or video
-                file_type = uploaded_file.type
+    if uploaded_file is not None:
+        try:
+            # Determine if it's an image or video
+            file_type = uploaded_file.type
+            
+            if file_type.startswith('image'):
+                # Handle image processing
+                image = Image.open(uploaded_file)
+                image = np.array(image)
                 
-                if file_type.startswith('image'):
-                    # Handle image processing
-                    image = Image.open(uploaded_file)
-                    image = np.array(image)
-                    
-                    # Convert BGR to RGB for display
-                    if len(image.shape) == 3:
-                        image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-                    
-                    st.image(image, caption="Original Image", channels="BGR")
-                    
-                    # Sidebar controls
-                    st.sidebar.header("Processing Options")
-                    
-                    # Image adjustment controls
-                    st.sidebar.subheader("Image Adjustments")
-                    brightness = st.sidebar.slider("Brightness", -100, 100, 0)
-                    contrast = st.sidebar.slider("Contrast", 0.0, 3.0, 1.0)
-                    saturation = st.sidebar.slider("Saturation", 0.0, 3.0, 1.0)
-                    
-                    # Filter cascade controls
-                    st.sidebar.subheader("Filter Cascade")
-                    num_filters = st.sidebar.number_input("Number of Filters", 1, 5, 1)
-                    
-                    # Initialize filter parameters
-                    filter_params = []
-                    processed_image = image.copy()
-                    
-                    # Create filter containers
-                    for i in range(num_filters):
-                        with st.sidebar.expander(f"Filter {i+1}", expanded=True):
-                            st.markdown('<div class="filter-container">', unsafe_allow_html=True)
-                            
-                            # Operation selection
-                            operation = st.selectbox(
-                                f"Operation {i+1}",
-                                ["None", "Edge Detection (Sobel)", "Edge Detection (Canny)", "Sharpen", 
-                                 "Box Blur", "Gaussian Blur", "Bilateral Filter", "Median Filter",
-                                 "Threshold", "Adaptive Threshold"],
-                                key=f"operation_{i}"
-                            )
-                            
-                            params = {}
-                            
-                            if operation != "None":
-                                if operation == "Edge Detection (Sobel)" or operation == "Edge Detection (Canny)":
-                                    st.subheader("Pre-processing Options")
-                                    pre_blur = st.slider(
-                                        "Pre-processing Blur Kernel Size",
-                                        0, 21, 0, step=2,
-                                        key=f"pre_blur_{i}"
+                # Convert BGR to RGB for display
+                if len(image.shape) == 3:
+                    image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                
+                st.image(image, caption="Original Image", channels="BGR")
+                
+                # Sidebar controls
+                st.sidebar.header("Processing Options")
+                
+                # Image adjustment controls
+                st.sidebar.subheader("Image Adjustments")
+                brightness = st.sidebar.slider("Brightness", -100, 100, 0)
+                contrast = st.sidebar.slider("Contrast", 0.0, 3.0, 1.0)
+                saturation = st.sidebar.slider("Saturation", 0.0, 3.0, 1.0)
+                
+                # Filter cascade controls
+                st.sidebar.subheader("Filter Cascade")
+                num_filters = st.sidebar.number_input("Number of Filters", 1, 5, 1)
+                
+                # Initialize filter parameters
+                filter_params = []
+                processed_image = image.copy()
+                
+                # Create filter containers
+                for i in range(num_filters):
+                    with st.sidebar.expander(f"Filter {i+1}", expanded=True):
+                        st.markdown('<div class="filter-container">', unsafe_allow_html=True)
+                        
+                        # Operation selection
+                        operation = st.selectbox(
+                            f"Operation {i+1}",
+                            ["None", "Edge Detection (Sobel)", "Edge Detection (Canny)", "Sharpen", 
+                             "Box Blur", "Gaussian Blur", "Bilateral Filter", "Median Filter",
+                             "Threshold", "Adaptive Threshold"],
+                            key=f"operation_{i}"
+                        )
+                        
+                        params = {}
+                        
+                        if operation != "None":
+                            if operation == "Edge Detection (Sobel)" or operation == "Edge Detection (Canny)":
+                                st.subheader("Pre-processing Options")
+                                pre_blur = st.slider(
+                                    "Pre-processing Blur Kernel Size",
+                                    0, 21, 0, step=2,
+                                    key=f"pre_blur_{i}"
+                                )
+                                if pre_blur > 0:
+                                    blur_type = st.selectbox(
+                                        "Blur Type",
+                                        ["gaussian", "box"],
+                                        key=f"blur_type_{i}"
                                     )
-                                    if pre_blur > 0:
-                                        blur_type = st.selectbox(
-                                            "Blur Type",
-                                            ["gaussian", "box"],
-                                            key=f"blur_type_{i}"
+                                    params["blur_type"] = blur_type
+                                    
+                                    if blur_type == "gaussian":
+                                        sigma = st.slider(
+                                            "Gaussian Sigma",
+                                            0.1, 5.0, 1.0,
+                                            key=f"sigma_{i}"
                                         )
-                                        params["blur_type"] = blur_type
-                                        
-                                        if blur_type == "gaussian":
-                                            sigma = st.slider(
-                                                "Gaussian Sigma",
-                                                0.1, 5.0, 1.0,
-                                                key=f"sigma_{i}"
-                                            )
-                                            params["sigma"] = sigma
+                                        params["sigma"] = sigma
                                     
                                     params["pre_blur"] = pre_blur
                                     
@@ -494,591 +472,334 @@ def main():
                                             1, 5, 1,
                                             key=f"thickness_{i}"
                                         )
-                                
-                                elif operation == "Sharpen":
-                                    params["intensity"] = st.selectbox(
-                                        "Sharpening Intensity",
-                                        ["normal", "intense"],
-                                        key=f"intensity_{i}"
-                                    )
-                                
-                                elif operation == "Box Blur":
-                                    params["kernel_size"] = st.slider(
-                                        "Kernel Size",
-                                        3, 31, 5, step=2,
-                                        key=f"box_kernel_{i}"
-                                    )
-                                
-                                elif operation == "Gaussian Blur":
-                                    params["kernel_size"] = st.slider(
-                                        "Kernel Size",
-                                        3, 31, 5, step=2,
-                                        key=f"gauss_kernel_{i}"
-                                    )
-                                    params["sigma"] = st.slider(
-                                        "Sigma",
-                                        0, 10, 0,
-                                        key=f"gauss_sigma_{i}"
-                                    )
-                                
-                                elif operation == "Bilateral Filter":
-                                    params["d"] = st.slider(
-                                        "Diameter",
-                                        1, 15, 9, step=2,
-                                        key=f"bilateral_d_{i}"
-                                    )
-                                    params["sigma_color"] = st.slider(
-                                        "Color Sigma",
-                                        1, 100, 75, step=1,
-                                        key=f"bilateral_color_{i}"
-                                    )
-                                    params["sigma_space"] = st.slider(
-                                        "Space Sigma",
-                                        1, 100, 75, step=1,
-                                        key=f"bilateral_space_{i}"
-                                    )
-                                
-                                elif operation == "Median Filter":
-                                    params["kernel_size"] = st.slider(
-                                        "Kernel Size",
-                                        3, 51, 5, step=2,
-                                        key=f"median_kernel_{i}"
-                                    )
-                                elif operation == "Threshold":
-                                    params["threshold_value"] = st.slider(
-                                        "Threshold Value",
-                                        0, 255, 127, step=1,
-                                        key=f"threshold_value_{i}"
-                                    )
-                                    params["max_value"] = st.slider(
-                                        "Max Value",
-                                        0, 255, 255, step=1,
-                                        key=f"max_value_{i}"
-                                    )
-                                    params["threshold_type"] = st.selectbox(
-                                        "Threshold Type",
-                                        ["binary", "binary_inv", "trunc", "tozero", "tozero_inv"],
-                                        key=f"threshold_type_{i}"
-                                    )
-                                elif operation == "Adaptive Threshold":
-                                    params["max_value"] = st.slider(
-                                        "Max Value",
-                                        0, 255, 255, step=1,
-                                        key=f"adaptive_max_value_{i}"
-                                    )
-                                    params["adaptive_method"] = st.selectbox(
-                                        "Adaptive Method",
-                                        ["mean", "gaussian"],
-                                        key=f"adaptive_method_{i}"
-                                    )
-                                    params["threshold_type"] = st.selectbox(
-                                        "Threshold Type",
-                                        ["binary", "binary_inv"],
-                                        key=f"adaptive_threshold_type_{i}"
-                                    )
-                                    params["block_size"] = st.slider(
-                                        "Block Size",
-                                        3, 99, 11, step=2,
-                                        key=f"block_size_{i}"
-                                    )
-                                    params["constant"] = st.slider(
-                                        "Constant",
-                                        0, 20, 2, step=1,
-                                        key=f"constant_{i}"
-                                    )
                             
-                            filter_params.append((operation, params))
-                            st.markdown('</div>', unsafe_allow_html=True)
-                    
-                    if st.sidebar.button("Apply Filters"):
-                        try:
-                            # Apply image adjustments first
-                            processed_image = adjust_image(
-                                processed_image,
-                                brightness=brightness,
-                                contrast=contrast,
-                                saturation=saturation
-                            )
+                            elif operation == "Sharpen":
+                                params["intensity"] = st.selectbox(
+                                    "Sharpening Intensity",
+                                    ["normal", "intense"],
+                                    key=f"intensity_{i}"
+                                )
                             
-                            # Apply filters in sequence
-                            for operation, params in filter_params:
-                                if operation != "None":
-                                    processed_image = process_image(processed_image, operation, params)
+                            elif operation == "Box Blur":
+                                params["kernel_size"] = st.slider(
+                                    "Kernel Size",
+                                    3, 31, 5, step=2,
+                                    key=f"box_kernel_{i}"
+                                )
                             
-                            # Display results
-                            st.image(processed_image, caption="Processed Image", channels="BGR")
+                            elif operation == "Gaussian Blur":
+                                params["kernel_size"] = st.slider(
+                                    "Kernel Size",
+                                    3, 31, 5, step=2,
+                                    key=f"gauss_kernel_{i}"
+                                )
+                                params["sigma"] = st.slider(
+                                    "Sigma",
+                                    0, 10, 0,
+                                    key=f"gauss_sigma_{i}"
+                                )
                             
-                            # Create download button for processed image
-                            processed_pil = Image.fromarray(cv2.cvtColor(processed_image, cv2.COLOR_BGR2RGB))
-                            buf = io.BytesIO()
-                            processed_pil.save(buf, format="PNG")
-                            st.download_button(
-                                label="Download Processed Image",
-                                data=buf.getvalue(),
-                                file_name="processed_image.png",
-                                mime="image/png"
-                            )
-                        except Exception as e:
-                            st.error(f"Error processing image: {str(e)}")
+                            elif operation == "Bilateral Filter":
+                                params["d"] = st.slider(
+                                    "Diameter",
+                                    1, 15, 9, step=2,
+                                    key=f"bilateral_d_{i}"
+                                )
+                                params["sigma_color"] = st.slider(
+                                    "Color Sigma",
+                                    1, 100, 75, step=1,
+                                    key=f"bilateral_color_{i}"
+                                )
+                                params["sigma_space"] = st.slider(
+                                    "Space Sigma",
+                                    1, 100, 75, step=1,
+                                    key=f"bilateral_space_{i}"
+                                )
+                            
+                            elif operation == "Median Filter":
+                                params["kernel_size"] = st.slider(
+                                    "Kernel Size",
+                                    3, 51, 5, step=2,
+                                    key=f"median_kernel_{i}"
+                                )
+                            elif operation == "Threshold":
+                                params["threshold_value"] = st.slider(
+                                    "Threshold Value",
+                                    0, 255, 127, step=1,
+                                    key=f"threshold_value_{i}"
+                                )
+                                params["max_value"] = st.slider(
+                                    "Max Value",
+                                    0, 255, 255, step=1,
+                                    key=f"max_value_{i}"
+                                )
+                                params["threshold_type"] = st.selectbox(
+                                    "Threshold Type",
+                                    ["binary", "binary_inv", "trunc", "tozero", "tozero_inv"],
+                                    key=f"threshold_type_{i}"
+                                )
+                            elif operation == "Adaptive Threshold":
+                                params["max_value"] = st.slider(
+                                    "Max Value",
+                                    0, 255, 255, step=1,
+                                    key=f"adaptive_max_value_{i}"
+                                )
+                                params["adaptive_method"] = st.selectbox(
+                                    "Adaptive Method",
+                                    ["mean", "gaussian"],
+                                    key=f"adaptive_method_{i}"
+                                )
+                                params["threshold_type"] = st.selectbox(
+                                    "Threshold Type",
+                                    ["binary", "binary_inv"],
+                                    key=f"adaptive_threshold_type_{i}"
+                                )
+                                params["block_size"] = st.slider(
+                                    "Block Size",
+                                    3, 99, 11, step=2,
+                                    key=f"block_size_{i}"
+                                )
+                                params["constant"] = st.slider(
+                                    "Constant",
+                                    0, 20, 2, step=1,
+                                    key=f"constant_{i}"
+                                )
+                        
+                        filter_params.append((operation, params))
+                        st.markdown('</div>', unsafe_allow_html=True)
                 
-                elif file_type.startswith('video'):
-                    # Handle video processing
-                    tfile = tempfile.NamedTemporaryFile(delete=False)
-                    tfile.write(uploaded_file.read())
+                if st.sidebar.button("Apply Filters"):
+                    try:
+                        # Apply image adjustments first
+                        processed_image = adjust_image(
+                            processed_image,
+                            brightness=brightness,
+                            contrast=contrast,
+                            saturation=saturation
+                        )
+                        
+                        # Apply filters in sequence
+                        for operation, params in filter_params:
+                            if operation != "None":
+                                processed_image = process_image(processed_image, operation, params)
+                        
+                        # Display results
+                        st.image(processed_image, caption="Processed Image", channels="BGR")
+                        
+                        # Create download button for processed image
+                        processed_pil = Image.fromarray(cv2.cvtColor(processed_image, cv2.COLOR_BGR2RGB))
+                        buf = io.BytesIO()
+                        processed_pil.save(buf, format="PNG")
+                        st.download_button(
+                            label="Download Processed Image",
+                            data=buf.getvalue(),
+                            file_name="processed_image.png",
+                            mime="image/png"
+                        )
+                    except Exception as e:
+                        st.error(f"Error processing image: {str(e)}")
+            
+            elif file_type.startswith('video'):
+                # Handle video processing
+                tfile = tempfile.NamedTemporaryFile(delete=False)
+                tfile.write(uploaded_file.read())
+                
+                st.sidebar.header("Processing Options")
+                operation = st.sidebar.selectbox(
+                    "Select Operation",
+                    ["Edge Detection (Sobel)", "Edge Detection (Canny)", "Sharpen", 
+                     "Box Blur", "Gaussian Blur", "Bilateral Filter", "Median Filter",
+                     "Threshold", "Adaptive Threshold"]
+                )
+                
+                params = {}
+                if operation == "Edge Detection (Sobel)":
+                    params["direction"] = st.sidebar.selectbox(
+                        "Edge Direction",
+                        ["both", "x", "y"]
+                    )
+                    params["threshold"] = st.sidebar.slider(
+                        "Edge Threshold",
+                        0, 255, 30
+                    )
+                    params["enhance"] = st.sidebar.checkbox(
+                        "Enhance Edges",
+                        value=True,
+                        help="Overlay detected edges on the original image"
+                    )
+                    if params["enhance"]:
+                        color_option = st.sidebar.selectbox(
+                            "Edge Color",
+                            ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "White"]
+                        )
+                        color_map = {
+                            "Red": (0, 0, 255),
+                            "Green": (0, 255, 0),
+                            "Blue": (255, 0, 0),
+                            "Yellow": (0, 255, 255),
+                            "Cyan": (255, 255, 0),
+                            "Magenta": (255, 0, 255),
+                            "White": (255, 255, 255)
+                        }
+                        params["line_color"] = color_map[color_option]
+                        params["line_thickness"] = st.sidebar.slider(
+                            "Line Thickness",
+                            1, 5, 1
+                        )
+                elif operation == "Edge Detection (Canny)":
+                    params["threshold1"] = st.sidebar.slider(
+                        "Lower Threshold",
+                        0, 255, 100
+                    )
+                    params["threshold2"] = st.sidebar.slider(
+                        "Upper Threshold",
+                        0, 255, 200
+                    )
+                    params["enhance"] = st.sidebar.checkbox(
+                        "Enhance Edges",
+                        value=True,
+                        help="Overlay detected edges on the original image"
+                    )
+                    if params["enhance"]:
+                        color_option = st.sidebar.selectbox(
+                            "Edge Color",
+                            ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "White"]
+                        )
+                        color_map = {
+                            "Red": (0, 0, 255),
+                            "Green": (0, 255, 0),
+                            "Blue": (255, 0, 0),
+                            "Yellow": (0, 255, 255),
+                            "Cyan": (255, 255, 0),
+                            "Magenta": (255, 0, 255),
+                            "White": (255, 255, 255)
+                        }
+                        params["line_color"] = color_map[color_option]
+                        params["line_thickness"] = st.sidebar.slider(
+                            "Line Thickness",
+                            1, 5, 1
+                        )
+                elif operation == "Sharpen":
+                    params["intensity"] = st.sidebar.selectbox(
+                        "Sharpening Intensity",
+                        ["normal", "intense"]
+                    )
+                elif operation in ["Box Blur", "Gaussian Blur", "Bilateral Filter", "Median Filter"]:
+                    if operation == "Box Blur":
+                        kernel_size = st.sidebar.slider(
+                            "Kernel Size",
+                            3, 31, 5, step=2
+                        )
+                        params["kernel_size"] = kernel_size
+                    elif operation == "Gaussian Blur":
+                        kernel_size = st.sidebar.slider(
+                            "Kernel Size",
+                            3, 31, 5, step=2
+                        )
+                        sigma = st.sidebar.slider(
+                            "Sigma",
+                            0, 10, 0
+                        )
+                        params["kernel_size"] = kernel_size
+                        params["sigma"] = sigma
+                    elif operation == "Bilateral Filter":
+                        d = st.sidebar.slider(
+                            "Diameter",
+                            1, 15, 9, step=2
+                        )
+                        sigma_color = st.sidebar.slider(
+                            "Color Sigma",
+                            1, 100, 75, step=1
+                        )
+                        sigma_space = st.sidebar.slider(
+                            "Space Sigma",
+                            1, 100, 75, step=1
+                        )
+                        params["d"] = d
+                        params["sigma_color"] = sigma_color
+                        params["sigma_space"] = sigma_space
+                    elif operation == "Median Filter":
+                        kernel_size = st.sidebar.slider(
+                            "Kernel Size",
+                            3, 51, 5, step=2
+                        )
+                        params["kernel_size"] = kernel_size
+                elif operation == "Threshold":
+                    params["threshold_value"] = st.sidebar.slider(
+                        "Threshold Value",
+                        0, 255, 127, step=1
+                    )
+                    params["max_value"] = st.sidebar.slider(
+                        "Max Value",
+                        0, 255, 255, step=1
+                    )
+                    params["threshold_type"] = st.sidebar.selectbox(
+                        "Threshold Type",
+                        ["binary", "binary_inv", "trunc", "tozero", "tozero_inv"]
+                    )
+                elif operation == "Adaptive Threshold":
+                    params["max_value"] = st.sidebar.slider(
+                        "Max Value",
+                        0, 255, 255, step=1
+                    )
+                    params["adaptive_method"] = st.sidebar.selectbox(
+                        "Adaptive Method",
+                        ["mean", "gaussian"]
+                    )
+                    params["threshold_type"] = st.sidebar.selectbox(
+                        "Threshold Type",
+                        ["binary", "binary_inv"]
+                    )
+                    params["block_size"] = st.sidebar.slider(
+                        "Block Size",
+                        3, 99, 11, step=2
+                    )
+                    params["constant"] = st.sidebar.slider(
+                        "Constant",
+                        0, 20, 2, step=1
+                    )
+                
+                if st.sidebar.button("Process Video"):
+                    video = cv2.VideoCapture(tfile.name)
                     
-                    st.sidebar.header("Processing Options")
-                    operation = st.sidebar.selectbox(
-                        "Select Operation",
-                        ["Edge Detection (Sobel)", "Edge Detection (Canny)", "Sharpen", 
-                         "Box Blur", "Gaussian Blur", "Bilateral Filter", "Median Filter",
-                         "Threshold", "Adaptive Threshold"]
+                    # Get video properties
+                    width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    fps = int(video.get(cv2.CAP_PROP_FPS))
+                    
+                    # Create temporary file for processed video
+                    processed_video_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
+                    out = cv2.VideoWriter(
+                        processed_video_file.name,
+                        cv2.VideoWriter_fourcc(*'mp4v'),
+                        fps, (width, height)
                     )
                     
-                    params = {}
-                    if operation == "Edge Detection (Sobel)":
-                        params["direction"] = st.sidebar.selectbox(
-                            "Edge Direction",
-                            ["both", "x", "y"]
-                        )
-                        params["threshold"] = st.sidebar.slider(
-                            "Edge Threshold",
-                            0, 255, 30
-                        )
-                        params["enhance"] = st.sidebar.checkbox(
-                            "Enhance Edges",
-                            value=True,
-                            help="Overlay detected edges on the original image"
-                        )
-                        if params["enhance"]:
-                            color_option = st.sidebar.selectbox(
-                                "Edge Color",
-                                ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "White"]
-                            )
-                            color_map = {
-                                "Red": (0, 0, 255),
-                                "Green": (0, 255, 0),
-                                "Blue": (255, 0, 0),
-                                "Yellow": (0, 255, 255),
-                                "Cyan": (255, 255, 0),
-                                "Magenta": (255, 0, 255),
-                                "White": (255, 255, 255)
-                            }
-                            params["line_color"] = color_map[color_option]
-                            params["line_thickness"] = st.sidebar.slider(
-                                "Line Thickness",
-                                1, 5, 1
-                            )
-                    elif operation == "Edge Detection (Canny)":
-                        params["threshold1"] = st.sidebar.slider(
-                            "Lower Threshold",
-                            0, 255, 100
-                        )
-                        params["threshold2"] = st.sidebar.slider(
-                            "Upper Threshold",
-                            0, 255, 200
-                        )
-                        params["enhance"] = st.sidebar.checkbox(
-                            "Enhance Edges",
-                            value=True,
-                            help="Overlay detected edges on the original image"
-                        )
-                        if params["enhance"]:
-                            color_option = st.sidebar.selectbox(
-                                "Edge Color",
-                                ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "White"]
-                            )
-                            color_map = {
-                                "Red": (0, 0, 255),
-                                "Green": (0, 255, 0),
-                                "Blue": (255, 0, 0),
-                                "Yellow": (0, 255, 255),
-                                "Cyan": (255, 255, 0),
-                                "Magenta": (255, 0, 255),
-                                "White": (255, 255, 255)
-                            }
-                            params["line_color"] = color_map[color_option]
-                            params["line_thickness"] = st.sidebar.slider(
-                                "Line Thickness",
-                                1, 5, 1
-                            )
-                    elif operation == "Sharpen":
-                        params["intensity"] = st.sidebar.selectbox(
-                            "Sharpening Intensity",
-                            ["normal", "intense"]
-                        )
-                    elif operation in ["Box Blur", "Gaussian Blur", "Bilateral Filter", "Median Filter"]:
-                        if operation == "Box Blur":
-                            kernel_size = st.sidebar.slider(
-                                "Kernel Size",
-                                3, 31, 5, step=2
-                            )
-                            params["kernel_size"] = kernel_size
-                        elif operation == "Gaussian Blur":
-                            kernel_size = st.sidebar.slider(
-                                "Kernel Size",
-                                3, 31, 5, step=2
-                            )
-                            sigma = st.sidebar.slider(
-                                "Sigma",
-                                0, 10, 0
-                            )
-                            params["kernel_size"] = kernel_size
-                            params["sigma"] = sigma
-                        elif operation == "Bilateral Filter":
-                            d = st.sidebar.slider(
-                                "Diameter",
-                                1, 15, 9, step=2
-                            )
-                            sigma_color = st.sidebar.slider(
-                                "Color Sigma",
-                                1, 100, 75, step=1
-                            )
-                            sigma_space = st.sidebar.slider(
-                                "Space Sigma",
-                                1, 100, 75, step=1
-                            )
-                            params["d"] = d
-                            params["sigma_color"] = sigma_color
-                            params["sigma_space"] = sigma_space
-                        elif operation == "Median Filter":
-                            kernel_size = st.sidebar.slider(
-                                "Kernel Size",
-                                3, 51, 5, step=2
-                            )
-                            params["kernel_size"] = kernel_size
-                    elif operation == "Threshold":
-                        params["threshold_value"] = st.sidebar.slider(
-                            "Threshold Value",
-                            0, 255, 127, step=1
-                        )
-                        params["max_value"] = st.sidebar.slider(
-                            "Max Value",
-                            0, 255, 255, step=1
-                        )
-                        params["threshold_type"] = st.sidebar.selectbox(
-                            "Threshold Type",
-                            ["binary", "binary_inv", "trunc", "tozero", "tozero_inv"]
-                        )
-                    elif operation == "Adaptive Threshold":
-                        params["max_value"] = st.sidebar.slider(
-                            "Max Value",
-                            0, 255, 255, step=1
-                        )
-                        params["adaptive_method"] = st.sidebar.selectbox(
-                            "Adaptive Method",
-                            ["mean", "gaussian"]
-                        )
-                        params["threshold_type"] = st.sidebar.selectbox(
-                            "Threshold Type",
-                            ["binary", "binary_inv"]
-                        )
-                        params["block_size"] = st.sidebar.slider(
-                            "Block Size",
-                            3, 99, 11, step=2
-                        )
-                        params["constant"] = st.sidebar.slider(
-                            "Constant",
-                            0, 20, 2, step=1
-                        )
+                    # Process video
+                    progress_bar = st.progress(0)
+                    frame_count = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
                     
-                    if st.sidebar.button("Process Video"):
-                        video = cv2.VideoCapture(tfile.name)
-                        
-                        # Get video properties
-                        width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
-                        height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                        fps = int(video.get(cv2.CAP_PROP_FPS))
-                        
-                        # Create temporary file for processed video
-                        processed_video_file = tempfile.NamedTemporaryFile(delete=False, suffix='.mp4')
-                        out = cv2.VideoWriter(
-                            processed_video_file.name,
-                            cv2.VideoWriter_fourcc(*'mp4v'),
-                            fps, (width, height)
-                        )
-                        
-                        # Process video
-                        progress_bar = st.progress(0)
-                        frame_count = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-                        
-                        for i in range(frame_count):
-                            ret, frame = video.read()
-                            if ret:
-                                processed_frame = process_image(frame, operation, params)
-                                out.write(processed_frame)
-                                progress_bar.progress((i + 1) / frame_count)
-                        
-                        video.release()
-                        out.release()
-                        
-                        # Provide download link for processed video
-                        with open(processed_video_file.name, 'rb') as f:
-                            st.download_button(
-                                label="Download Processed Video",
-                                data=f.read(),
-                                file_name="processed_video.mp4",
-                                mime="video/mp4"
-                            )
-            except Exception as e:
-                st.error(f"Error loading file: {str(e)}")
-                st.info("Please make sure you've uploaded a valid image or video file.")
-
-    else:  # Webcam
-        st.header("Webcam Processing")
-        
-        # Camera detection
-        webcam_col1, webcam_col2 = st.columns([3, 1])
-        
-        with webcam_col2:
-            if st.button("Scan for Cameras"):
-                with st.spinner("Scanning for available cameras..."):
-                    available_cameras = detect_cameras()
-                    if available_cameras:
-                        st.success(f"Found {len(available_cameras)} camera(s): {available_cameras}")
-                    else:
-                        st.error("No cameras detected. Please check your connections.")
-        
-        with webcam_col1:
-            st.info("If your webcam isn't working, try clicking 'Scan for Cameras' to find available camera indices, or try installing the 'opencv-python-headless' package.")
-        
-        # Sidebar controls for webcam
-        st.sidebar.header("Processing Options")
-        operation = st.sidebar.selectbox(
-            "Select Operation",
-            ["None", "Edge Detection (Sobel)", "Edge Detection (Canny)", "Sharpen", 
-             "Box Blur", "Gaussian Blur", "Bilateral Filter", "Median Filter",
-             "Threshold", "Adaptive Threshold"]
-        )
-        
-        params = {}
-        if operation == "Edge Detection (Sobel)":
-            params["direction"] = st.sidebar.selectbox(
-                "Edge Direction",
-                ["both", "x", "y"]
-            )
-            params["threshold"] = st.sidebar.slider(
-                "Edge Threshold",
-                0, 255, 30
-            )
-            params["enhance"] = st.sidebar.checkbox(
-                "Enhance Edges",
-                value=True,
-                help="Overlay detected edges on the original image"
-            )
-            if params["enhance"]:
-                color_option = st.sidebar.selectbox(
-                    "Edge Color",
-                    ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "White"]
-                )
-                color_map = {
-                    "Red": (0, 0, 255),
-                    "Green": (0, 255, 0),
-                    "Blue": (255, 0, 0),
-                    "Yellow": (0, 255, 255),
-                    "Cyan": (255, 255, 0),
-                    "Magenta": (255, 0, 255),
-                    "White": (255, 255, 255)
-                }
-                params["line_color"] = color_map[color_option]
-                params["line_thickness"] = st.sidebar.slider(
-                    "Line Thickness",
-                    1, 5, 1
-                )
-        elif operation == "Edge Detection (Canny)":
-            params["threshold1"] = st.sidebar.slider(
-                "Lower Threshold",
-                0, 255, 100
-            )
-            params["threshold2"] = st.sidebar.slider(
-                "Upper Threshold",
-                0, 255, 200
-            )
-            params["enhance"] = st.sidebar.checkbox(
-                "Enhance Edges",
-                value=True,
-                help="Overlay detected edges on the original image"
-            )
-            if params["enhance"]:
-                color_option = st.sidebar.selectbox(
-                    "Edge Color",
-                    ["Red", "Green", "Blue", "Yellow", "Cyan", "Magenta", "White"]
-                )
-                color_map = {
-                    "Red": (0, 0, 255),
-                    "Green": (0, 255, 0),
-                    "Blue": (255, 0, 0),
-                    "Yellow": (0, 255, 255),
-                    "Cyan": (255, 255, 0),
-                    "Magenta": (255, 0, 255),
-                    "White": (255, 255, 255)
-                }
-                params["line_color"] = color_map[color_option]
-                params["line_thickness"] = st.sidebar.slider(
-                    "Line Thickness",
-                    1, 5, 1
-                )
-        elif operation == "Sharpen":
-            params["intensity"] = st.sidebar.selectbox(
-                "Sharpening Intensity",
-                ["normal", "intense"]
-            )
-        elif operation == "Box Blur":
-            kernel_size = st.sidebar.slider(
-                "Kernel Size",
-                3, 31, 5, step=2
-            )
-            params["kernel_size"] = kernel_size
-        elif operation == "Gaussian Blur":
-            kernel_size = st.sidebar.slider(
-                "Kernel Size",
-                3, 31, 5, step=2
-            )
-            sigma = st.sidebar.slider(
-                "Sigma",
-                0, 10, 0
-            )
-            params["kernel_size"] = kernel_size
-            params["sigma"] = sigma
-        elif operation == "Bilateral Filter":
-            d = st.sidebar.slider(
-                "Diameter",
-                1, 15, 9, step=2
-            )
-            sigma_color = st.sidebar.slider(
-                "Color Sigma",
-                1, 100, 75, step=1
-            )
-            sigma_space = st.sidebar.slider(
-                "Space Sigma",
-                1, 100, 75, step=1
-            )
-            params["d"] = d
-            params["sigma_color"] = sigma_color
-            params["sigma_space"] = sigma_space
-        elif operation == "Median Filter":
-            kernel_size = st.sidebar.slider(
-                "Kernel Size",
-                3, 51, 5, step=2
-            )
-            params["kernel_size"] = kernel_size
-        elif operation == "Threshold":
-            params["threshold_value"] = st.sidebar.slider(
-                "Threshold Value",
-                0, 255, 127, step=1
-            )
-            params["max_value"] = st.sidebar.slider(
-                "Max Value",
-                0, 255, 255, step=1
-            )
-            params["threshold_type"] = st.sidebar.selectbox(
-                "Threshold Type",
-                ["binary", "binary_inv", "trunc", "tozero", "tozero_inv"]
-            )
-        elif operation == "Adaptive Threshold":
-            params["max_value"] = st.sidebar.slider(
-                "Max Value",
-                0, 255, 255, step=1
-            )
-            params["adaptive_method"] = st.sidebar.selectbox(
-                "Adaptive Method",
-                ["mean", "gaussian"]
-            )
-            params["threshold_type"] = st.sidebar.selectbox(
-                "Threshold Type",
-                ["binary", "binary_inv"]
-            )
-            params["block_size"] = st.sidebar.slider(
-                "Block Size",
-                3, 99, 11, step=2
-            )
-            params["constant"] = st.sidebar.slider(
-                "Constant",
-                0, 20, 2, step=1
-            )
-        
-        # Add option to select webcam source
-        camera_index = st.sidebar.selectbox(
-            "Camera Source", 
-            options=[0, 1, 2, 3, "Custom"],
-            help="Select webcam device index. Try different numbers if default (0) doesn't work."
-        )
-        
-        if camera_index == "Custom":
-            camera_index = st.sidebar.number_input("Enter custom camera index", min_value=0, value=0)
-        
-        # Display webcam
-        webcam_placeholder = st.empty()
-        start_button = st.button("Start Processing")
-        stop_button = st.button("Stop Processing")
-        
-        if start_button:
-            try:
-                # Display attempting to connect message
-                connecting_message = st.info(f"Attempting to connect to camera index {camera_index}...")
-                
-                # Try different camera APIs (useful for Windows especially)
-                # First try default API
-                cap = cv2.VideoCapture(camera_index)
-                
-                # If that fails, try DirectShow API (on Windows)
-                if not cap.isOpened():
-                    st.info("First attempt failed. Trying DirectShow API...")
-                    # DirectShow (DSHOW) API - often works better on Windows
-                    cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
-                
-                # If still fails, try using Media Foundation API (on newer Windows)
-                if not cap.isOpened():
-                    st.info("Second attempt failed. Trying Media Foundation API...")
-                    # Media Foundation API - for Windows 8 and newer
-                    cap = cv2.VideoCapture(camera_index, cv2.CAP_MSMF)
-                
-                # Check if any of the attempts successfully opened the camera
-                if not cap.isOpened():
-                    st.error(f"Could not open webcam at index {camera_index}. Please try a different index or check your camera connection.")
-                    
-                    # Add more detailed troubleshooting suggestions
-                    st.warning("""
-                    Troubleshooting tips:
-                    1. Try selecting a different camera index from the dropdown
-                    2. Check if your webcam is connected properly
-                    3. Make sure no other application is using your webcam
-                    4. For Windows users, check if privacy settings allow browser access to camera
-                    5. Try running the app with 'pip install opencv-python' instead of 'opencv-python-headless'
-                    6. Try restarting your computer
-                    """)
-                    
-                    # Suggest alternatives
-                    st.info("Alternative: If you're unable to use your webcam directly, consider taking a photo with your device and uploading it through the 'File Upload' option.")
-                else:
-                    # Clear connecting message
-                    connecting_message.empty()
-                    st.success(f"Successfully connected to camera at index {camera_index}")
-                    
-                    is_running = True
-                    while is_running and not stop_button:
-                        # Read frame
-                        ret, frame = cap.read()
-                        if not ret:
-                            st.error("Failed to read from webcam.")
-                            break
-                        
-                        # Process frame if an operation is selected
-                        if operation != "None":
+                    for i in range(frame_count):
+                        ret, frame = video.read()
+                        if ret:
                             processed_frame = process_image(frame, operation, params)
-                        else:
-                            processed_frame = frame
-                        
-                        # Convert to RGB for display
-                        rgb_frame = cv2.cvtColor(processed_frame, cv2.COLOR_BGR2RGB)
-                        
-                        # Display the frame
-                        webcam_placeholder.image(rgb_frame, channels="RGB", use_container_width=True)
-                
-                    # Release webcam when stopped
-                    cap.release()
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
-                st.info("Please check if your webcam is properly connected and not in use by another application.")
+                            out.write(processed_frame)
+                            progress_bar.progress((i + 1) / frame_count)
+                    
+                    video.release()
+                    out.release()
+                    
+                    # Provide download link for processed video
+                    with open(processed_video_file.name, 'rb') as f:
+                        st.download_button(
+                            label="Download Processed Video",
+                            data=f.read(),
+                            file_name="processed_video.mp4",
+                            mime="video/mp4"
+                        )
+        except Exception as e:
+            st.error(f"Error loading file: {str(e)}")
+            st.info("Please make sure you've uploaded a valid image or video file.")
 
     # Add footer at the end
     st.markdown(
